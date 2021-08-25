@@ -104,8 +104,6 @@ def run_nets(params):
         ss =  [int(s) for s in inp_args["--s_nonlin"].split(' ')[1:]]
 
         mtx_rat = [[np.median(sims_cen[(p,s)])/np.median(sims_per[(p,s)]) for s in ss] for p in ps]
-        #mtx_cen = [[np.array2string(sims_cen[(p,s)]) for s in ss] for p in ps]
-        #mtx_per = [[np.array2string(sims_per[(p,s)]) for s in ss] for p in ps]
         mtx_cen = [[json.dumps(sims_cen[(p,s)].tolist()) for s in ss] for p in ps]
         mtx_per = [[json.dumps(sims_per[(p,s)].tolist()) for s in ss] for p in ps]
         save_mtx(mtx_rat, mtx_cen, mtx_per, ps, ss, params["n"], params["tau"],
@@ -132,5 +130,3 @@ if(__name__ == "__main__"):
     init_graphs_parallel(pop_size = params["n"],
                           deg_exp=params["tau"], folder=params["log_folder"])
     run_nets(params)
-    
-    #save_to_common_file(params)
