@@ -1,7 +1,10 @@
+import os
 import numpy as np
 import networkx as nx
 from utils.dotdict import dotdict
 from utils.graph_generator import get_graph
+from utils.GIRG import GIRG
+import sys
 
 GIRG_args1 = dotdict({
     "name":"GIRG",
@@ -88,8 +91,9 @@ def init_graph(args):
         folder = os.path.dirname(os.path.abspath(__file__))+'/../'
         node_file = folder+"data/KSHSettlList_settlID_settlname_pop_lat_lon.csv"
         edge_file = folder+"data/KSHCommuting_c1ID_c1name_c2ID_c2name_comm_school_work_DIR.csv"
-        if(!os.path.exists(node_file) or !os.path.exists(edge_file)):
+        if((not os.path.exists(node_file)) or (not os.path.exists(edge_file))):
             print(node_file, "or", edge_file, "doues not exists. Please ask the authors for permission.")
+            sys.exit(1)
         
         graph = get_graph(type = "KSH",
                         args = {"nodes":node_file,
@@ -103,7 +107,7 @@ def init_graph(args):
     elif(args.name == "GIRG"):
         if(("whished_edgenum" not in args) or ("random_seed" not in args)):
             print("Please give the edgenum and random_seed")
-            exit(1)
+            exit()
 
         population_per_city = args.pop_in_city
 

@@ -1,0 +1,6 @@
+*__pycache__*
+*data*
+*.egg-info
+src/bin/main
+src/bin/ecl-cc
+*.ipynb_checkpoints*

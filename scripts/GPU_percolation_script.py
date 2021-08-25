@@ -128,7 +128,7 @@ if(__name__ == "__main__"):
         "--mode":"simulation"
     }
 
-    # === Init metworks ===
+    # === Init networks ===
     init_graphs_parallel(pop_size = params["n"],
                           deg_exp=params["tau"], folder=params["log_folder"])
     run_nets(params)
