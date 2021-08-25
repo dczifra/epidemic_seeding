@@ -1,0 +1,7 @@
+#!/bin/bash
+
+time nvcc -std=c++11 -O3 -lcurand -arch=sm_35 \
+    src/cuda/main.cu src/cuda/ECL-CC_11.cu src/cuda/components.cu \
+    -o src/bin/ecl-cc
+
+echo "ECL-CUDA is ready"
