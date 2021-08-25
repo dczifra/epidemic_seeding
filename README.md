@@ -11,7 +11,7 @@ The repo is organized as follows:
 # Initialization
 
 ## Required packages
-Python
+Python >= 3.7
 ```
 numpy powerlaw matplotlib scipy networkx subprocess pickle multiprcessing pandas json
 ```
@@ -28,7 +28,10 @@ CUDA
 
 ## Build
 ```
-# GPU code for percolation
+# From the home folder of the repo
+pip install -e .
+
+# GPU code for percolation (it takes ~30 s)
 ./src/bin/build_ecl
 # C++ code for metapop model
 ./src/bin/build_cpp
