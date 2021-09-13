@@ -81,6 +81,35 @@ def save_to_common_file(params):
     df_all.to_csv("../res_figure.csv")
     return df_all
 
+def run_nets(params, g_stream):
+    mtxs = []
+    for i in range(8,10):
+        print("Network {}".format(i))
+        params["random_seed"]=i
+
+        inp_args["--p_nonlin"]=get_ps(p_c=p_c, tau=params["tau"], n=params["n"], N=params["N_ps"])
+
+        inp_args["--per"]=False
+        arr,sims_cen = feed_edge_list(g_stream, inp_args, False)
+
+        inp_args["--per"]=True
+        arr,sims_per = feed_edge_list(g_stream, inp_args)
+
+        ps = sorted(list(set(np.array(list(sims_per.keys()))[:,0])))
+        ss =  [int(s) for s in inp_args["--s_nonlin"].split(' ')[1:]]
+
+        mtx_rat = [[np.median(sims_cen[(p,s)])/np.median(sims_per[(p,s)]) for s in ss] for p in ps]
+        mtx_cen = [[json.dumps(sims_cen[(p,s)].tolist()) for s in ss] for p in ps]
+        mtx_per = [[json.dumps(sims_per[(p,s)].tolist()) for s in ss] for p in ps]
+        save_mtx(mtx_rat, mtx_cen, mtx_per, ps, ss, params["n"], params["tau"],
+                 folder=params["log_folder"], p_c = p_c, extra="median_{}".format(i))
+
+        mtxs.append(mtx_rat)
+        
+    mtx_mean = np.mean(np.array(mtxs), axis=0)
+    save_mtx(mtx_mean, mtx_mean, mtx_mean, ps, ss, params["n"], params["tau"],
+                     folder=params["log_folder"], p_c = p_c, extra="median_all")
+
 def run_nets(params):
     mtxs = []
     for i in range(8,10):
