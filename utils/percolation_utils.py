@@ -7,8 +7,8 @@ import multiprocessing
 import powerlaw
 import networkx as nx
 
-from params import init_graph, get_centrum
-from ecl_utils import run_ecl_cc,feed_edge_list, get_graphstream
+from utils.params import init_graph, get_centrum
+from utils.ecl_utils import run_ecl_cc,feed_edge_list, get_graphstream
 
 def get_pc(graph):
     a=list(dict(graph.degree).values())

@@ -34,7 +34,7 @@ def run_ecl_cc(graph, init_seeds):
     stream+=" ".join(str(s) for s in init_seeds)+'\n'
     
     print("Graph collected")
-    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/bin/ecl-cc', 'nofile'],
+    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/ecl-cc', 'nofile'],
           stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
 
     out,err = p.communicate(stream)
@@ -67,7 +67,8 @@ def get_graphstream(graph, init_seeds, args):
 def feed_edge_list(graph_stream, args, verbose = False):
     str_args = " ".join([str(item) for pair in args.items() for item in pair])
     str_args = str_args.split(' ')
-    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/bin/ecl-cc', 'nofile']+str_args,
+    print(str_args)
+    p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/ecl-cc', 'nofile']+str_args,
           stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
     
     if(verbose):
