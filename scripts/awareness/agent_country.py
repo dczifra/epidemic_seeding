@@ -1,5 +1,7 @@
 import csv
 import json
+
+from matplotlib.pyplot import hist
 import numpy as np
 import networkx as nx
 from numba import jit
@@ -12,6 +14,8 @@ I = 2
 R = 3
 G = 10
 
+def _check_stop(states):
+    return (np.sum(states == I)+ np.sum(states == G) == 0)
 
 class Agent_Country:
     def __init__(self, args, graph):
@@ -33,21 +37,27 @@ class Agent_Country:
 
         # === Infections ===
         if("infected_agents" in args):
-            self.init_seeds = args["infected_agents"] + args["super_infected_agents"]
-            self.seed[self.init_seeds] = self.init_seeds
-
-            self.states[args["infected_agents"]] = I
-            self.states[args["super_infected_agents"]] = G
-            
-            self.timers[self.init_seeds] = np.random.geometric(self.args["gamma"])+1
-            
-            indexes = nx.get_node_attributes(graph, "index")
-            nx.set_node_attributes(self.graph,
-                               {n: 1 if indexes[n] in self.init_seeds
-                                else 0 for n in self.graph.nodes()}, 'init_node')
+            self.infect_seeds(
+                self.args.random_seed,
+                self.args["infected_agents"],
+                self.args["super_infected_agents"])
         else:
             print("Please give the infeceted, and superinfected agents (infected_agents, super_infected_agents)")
+    
+    #@jit(nopython=True)
+    def infect_seeds(self, random_seed, infected_agents, super_infected_agents):
+        np.random.seed(random_seed)
+        self.reinit()
 
+        self.seed[infected_agents] = infected_agents
+        self.seed[super_infected_agents] = super_infected_agents
+
+        self.states[infected_agents] = I
+        self.states[super_infected_agents] = G
+        
+        self.timers[infected_agents] = np.random.geometric(self.args.gamma)+1
+        self.timers[super_infected_agents] = np.random.geometric(self.args.gamma)+1
+    
     def barabasi_inf(self, graph):
         ind = np.random.randint(0,self.N)
         inf_nodes = np.array([node for node in graph.neighbors(ind)])[:10]
@@ -63,7 +73,6 @@ class Agent_Country:
         c = n//2
         inf_nodes = np.array([n*(c-1)+c-1, n*(c-1)+c, n*(c-1)+c+1, n*c+c-1, n*c+c, n*c+c+1, n*(c+1)+c-1, n*(c+1)+c, n*(c+1)+c+1])
         self.states[inf_nodes] = np.array([G,I,G,I,G,I,G,I,G])
-        #self.states[inf_nodes] = np.array([1,10,1,10,1,10,1,10,1])
         self.timers[inf_nodes] = np.random.geometric(self.args["gamma"])+1
 
 
@@ -80,10 +89,13 @@ class Agent_Country:
         print("")
     
     def check_stop(self):
-        return (np.sum(self.states == I)+ np.sum(self.states == G) == 0)
+        return _check_stop(self.states)
 
+    def _check_stop2(states, seed, init_seeds):
+        return not ( (seed[states == I]==init_seeds[0]).any() and (seed[states == I]==init_seeds[1]).any() )
+    
     def check_stop2(self):
-        return not ( (self.seed[self.states == I]==self.init_seeds[0]).any() and (self.seed[self.states == I]==self.init_seeds[1]).any() )
+        return Agent_Country._check_stop2(self.states, self.seeds, self.init_seeds)
     
     def step(self):
         #print("\rStep {}".format(self.iterations), end = '')
@@ -95,14 +107,63 @@ class Agent_Country:
         gamma = self.args["gamma"]
         xi = self.args["xi"]
         # === Infections ===
-        merged = Agent_Country.update_neighs(self.states, self.indexes, self.timers, self.Rtimers,
+        merged = Agent_Country._update_neighs(self.states, self.indexes, self.timers, self.Rtimers,
                               self.neighs, self.seed, p_super, beta, beta_super, gamma, xi, self.args.awM, self.args.awR, self.dist_bfs_from)
 
         self.iterations += 1
         return merged
+    
+    @jit(nopython=True)
+    def numba_random_seed(random_seed):
+        np.random.seed(random_seed)
+
+    def run_fast(self, random_seed, infected_agents, simnum, callback):
+        self.infect_seeds(random_seed, infected_agents, [])
+        history = np.zeros(shape=(simnum, self.args["max_iteration"], 4))
+        return Agent_Country._run_fast(self.args["max_iteration"],
+            self.states, self.indexes, self.timers, self.Rtimers, self.neighs, self.seed,
+            self.args["p_super"], self.args["beta"], self.args["beta_super"], self.args["gamma"],
+            self.args["xi"], self.args.awM, self.args.awR, self.dist_bfs_from, Agent_Country._update_neighs,
+            history, np.array(infected_agents), callback)
+
+    @jit(nopython=True)
+    def _run_fast(max_iter, states, indexes, timers, Rtimers, neighs, seed, p_super,
+                      beta, beta_super, gamma, xi, awM, awR, dist_bfs_from, update, history, infected_agents, callback):
+        np.random.seed(0)
+        merged_sum = 0
+        for run_i in range(len(history)):
+            merged_it = False
+            N = len(states)
+            states = np.zeros(N, dtype = np.int8)
+            timers = np.zeros(N, dtype = np.int32)
+            Rtimers = np.zeros(N, dtype = np.int32)
+            seed = -np.ones(N, dtype=np.int32)
+
+            np.random.seed(0)
+            states[infected_agents] = I
+            seed[infected_agents] = infected_agents
+            timers[infected_agents] = np.random.geometric(gamma)+1
+
+            np.random.seed(run_i)
+
+            for i in range(max_iter):
+                history[run_i, i,S]=np.sum(states==S)
+                history[run_i, i,E]=np.sum(states==E)
+                history[run_i, i,I]=np.sum(states==I)
+                history[run_i, i,R]=np.sum(states==R)
+                if (np.sum(states == I)+ np.sum(states == G) == 0): # 1or 2
+                    break
+                merged_step = update(states, indexes, timers, Rtimers,
+                            neighs, seed, p_super, beta, beta_super, gamma, xi, awM, awR, dist_bfs_from)
+
+                if(merged_step):
+                    merged_it = True
+            merged_sum += merged_it
+
+        return callback(history, max_iter),merged_sum
 
     @jit(nopython = True)
-    def update_neighs(states, indexes, timers, Rtimers, neighs, seed, p_super,
+    def _update_neighs(states, indexes, timers, Rtimers, neighs, seed, p_super,
                       beta, beta_super, gamma, xi, awM, awR, dist_bfs_from):
         # 0 : Suscepted
         # 1 : Infected
@@ -191,13 +252,15 @@ class Agent_Country:
 
         return (np.array(arr, dtype = np.int32), slices)
 
-    def init_states(self):
-        #self.states = np.array(["S"]*self.N)
+    def reinit(self):
         self.states = np.zeros(self.N, dtype = np.int8)
         self.indexes = np.array(np.arange(self.N, dtype= np.int32))
         self.timers = np.zeros(self.N, dtype = np.int32)
         self.Rtimers = np.zeros(self.N, dtype = np.int32)
         self.seed = -np.ones(self.N, dtype=np.int32)
+
+    def init_states(self):
+        self.reinit()
         
         all_neighs = []
         indexes = nx.get_node_attributes(self.graph, "index")
@@ -238,9 +301,6 @@ class Agent_Country:
         return mtx
     
     def init_distances(self, graph):
-        indexes = nx.get_node_attributes(graph, "index")
-        N = len(indexes)
-        nodelist = [indexes[i] for i in graph.nodes()]
         pos = np.array([np.array(graph.nodes[node]["pos"], dtype = np.float32) for node in graph.nodes])
         self.dist_l2_from = Agent_Country.init_dist_l2(pos)
         self.dist_bfs_from = np.array(nx.floyd_warshall_numpy(graph,  weight = "dist").astype(float))
