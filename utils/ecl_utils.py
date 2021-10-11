@@ -67,7 +67,6 @@ def get_graphstream(graph, init_seeds, args):
 def feed_edge_list(graph_stream, args, verbose = False):
     str_args = " ".join([str(item) for pair in args.items() for item in pair])
     str_args = str_args.split(' ')
-    print(str_args)
     p = Popen([os.path.dirname(os.path.abspath(__file__))+'/../src/bin/ecl-cc', 'nofile']+str_args,
           stdout=PIPE, stdin=PIPE, stderr=STDOUT, bufsize=1, universal_newlines=True)
     

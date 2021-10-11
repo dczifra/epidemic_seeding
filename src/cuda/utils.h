@@ -22,6 +22,7 @@ struct Args{
     Args(int argc, char* argv[]){
         for(int iter=0;iter<argc;iter++){
             std::string act_param = argv[iter];
+            //std::cout<<act_param<<std::endl;
             if(act_param=="--p"){
                 int size = std::stoi(argv[++iter]);
                 ps.resize(size);
@@ -81,6 +82,7 @@ struct Args{
                 else if(act_param == "simulation") mode = simulation;
             }
         }
-        std::cout<<">>> Params: p="<<p<<" seed="<<random_seed<<" verbose="<<(verbose?"True":"False")<<"\n"; 
+        std::cout<<">>> Params: p="<<p<<" seed="<<random_seed<<" verbose="<<
+            (verbose?"True":"False")<<" sim_num: "<<simulation_num<<"\n";
     }
 };
