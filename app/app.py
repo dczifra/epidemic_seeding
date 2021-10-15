@@ -9,12 +9,13 @@ import json
 import numpy as np
 import networkx as nx
 from networkx.readwrite import json_graph
+
 from utils.graph_generator import get_graph
 import argparse
-from seed_research import init_graph
+from utils.params import init_graph
 
-from country import Country
-from agent_model import Agent_Country
+#from country import Country
+from scripts.awareness.agent_country import Agent_Country
 from utils.dotdict import dotdict
 
 def parse_args():
