@@ -5,4 +5,3 @@ src/bin/main
 src/bin/ecl-cc
 *.ipynb_checkpoints*
 *.pdf
-*log*
