@@ -1,7 +1,10 @@
 *__pycache__*
-*data*
+*/data*
 *.egg-info
 src/bin/main
 src/bin/ecl-cc
 *.ipynb_checkpoints*
 *.pdf
+*.csv
+*.json
+*.log
