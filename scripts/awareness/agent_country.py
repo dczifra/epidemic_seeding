@@ -5,6 +5,7 @@ from matplotlib.pyplot import hist
 import numpy as np
 import networkx as nx
 from numba import jit
+from numba.typed import Dict as ndict
 
 # JIT cannot handle yet with string/char arrays, that's why
 #    I have to use int arrays. The states are:
@@ -13,6 +14,27 @@ E = 1
 I = 2
 R = 3
 G = 10
+
+@jit(nopython = True)
+def sigmoid(x):
+    return 1/(1 + np.exp(-x))
+
+@jit(nopython = True)
+def awareness_prod(awareness_vector):
+    if len(awareness_vector)>0:
+        awareness = np.prod(1- awareness_vector)
+    else:
+        awareness = 1
+    return awareness
+
+@jit(nopython = True)
+def awareness_sigmoid(N, awareness_vector, awareness_max, th, speed):
+    C = np.sum(awareness_max)*th
+    if len(awareness_vector)>0:
+        awareness = 1-sigmoid(speed*(np.sum(awareness_vector)-C))
+    else:
+        awareness = 1
+    return awareness
 
 def _check_stop(states):
     return (np.sum(states == I)+ np.sum(states == G) == 0)
@@ -44,8 +66,8 @@ class Agent_Country:
         else:
             print("Please give the infeceted, and superinfected agents (infected_agents, super_infected_agents)")
     
-    #@jit(nopython=True)
-    def infect_seeds(self, random_seed, infected_agents, super_infected_agents):
+    #@jit(nopython = False)
+    def infect_seeds(self, random_seed: int, infected_agents: np.array, super_infected_agents:np.array):
         np.random.seed(random_seed)
         self.reinit()
 
@@ -97,40 +119,48 @@ class Agent_Country:
     def check_stop2(self):
         return Agent_Country._check_stop2(self.states, self.seeds, self.init_seeds)
     
-    def step(self):
+    def step(self, **kwds):
         #print("\rStep {}".format(self.iterations), end = '')
 
-        p_super = self.args["p_super"]
-        beta = self.args["beta"]
-        beta_super = self.args["beta_super"]
-
-        gamma = self.args["gamma"]
-        xi = self.args["xi"]
         # === Infections ===
+        kwds = self.get_kwargs(kwds)
         merged = Agent_Country._update_neighs(self.states, self.indexes, self.timers, self.Rtimers,
-                              self.neighs, self.seed, p_super, beta, beta_super, gamma, xi, self.args.awM, self.args.awR, self.dist_bfs_from)
+                              self.neighs, self.seed, self.dist_bfs_from, kwds)
 
         self.iterations += 1
         return merged
+
+    def get_kwargs(self, kwds):
+        # === Add infection params to kwargs
+        for param in ["p_super", "beta", "beta_super", "gamma", "xi", "awM", "awR"]:
+            kwds[param] = self.args[param]
+        
+        # === Create numba dictionary
+        kwargs = ndict()
+        for k,v in kwds.items():
+            kwargs[k]=v
+
+        return kwargs
     
     @jit(nopython=True)
     def numba_random_seed(random_seed):
         np.random.seed(random_seed)
 
-    def run_fast(self, random_seed, infected_agents, simnum, callback):
+    def run_fast(self, random_seed, infected_agents, simnum, callback, **kwds):
         self.infect_seeds(random_seed, infected_agents, [])
         history = np.zeros(shape=(simnum, self.args["max_iteration"], 4))
+
         return Agent_Country._run_fast(self.args["max_iteration"],
             self.states, self.indexes, self.timers, self.Rtimers, self.neighs, self.seed,
-            self.args["p_super"], self.args["beta"], self.args["beta_super"], self.args["gamma"],
-            self.args["xi"], self.args.awM, self.args.awR, self.dist_bfs_from, Agent_Country._update_neighs,
-            history, np.array(infected_agents), callback)
+            self.dist_bfs_from, Agent_Country._update_neighs,
+            history, np.array(infected_agents), callback, self.get_kwargs(kwds))
 
     @jit(nopython=True)
-    def _run_fast(max_iter, states, indexes, timers, Rtimers, neighs, seed, p_super,
-                      beta, beta_super, gamma, xi, awM, awR, dist_bfs_from, update, history, infected_agents, callback):
-        np.random.seed(0)
+    def _run_fast(max_iter, states, indexes, timers, Rtimers, neighs, seed,
+                    dist_bfs_from, update, history, infected_agents, callback, kwds):
         merged_sum = 0
+        np.random.seed(0)
+
         for run_i in range(len(history)):
             merged_it = False
             N = len(states)
@@ -142,10 +172,9 @@ class Agent_Country:
             np.random.seed(0)
             states[infected_agents] = I
             seed[infected_agents] = infected_agents
-            timers[infected_agents] = np.random.geometric(gamma)+1
+            timers[infected_agents] = np.random.geometric(kwds['gamma'])+1
 
             np.random.seed(run_i)
-
             for i in range(max_iter):
                 history[run_i, i,S]=np.sum(states==S)
                 history[run_i, i,E]=np.sum(states==E)
@@ -154,7 +183,7 @@ class Agent_Country:
                 if (np.sum(states == I)+ np.sum(states == G) == 0): # 1or 2
                     break
                 merged_step = update(states, indexes, timers, Rtimers,
-                            neighs, seed, p_super, beta, beta_super, gamma, xi, awM, awR, dist_bfs_from)
+                            neighs, seed, dist_bfs_from, kwds)
 
                 if(merged_step):
                     merged_it = True
@@ -163,13 +192,13 @@ class Agent_Country:
         return callback(history, max_iter),merged_sum
 
     @jit(nopython = True)
-    def _update_neighs(states, indexes, timers, Rtimers, neighs, seed, p_super,
-                      beta, beta_super, gamma, xi, awM, awR, dist_bfs_from):
+    def _update_neighs(states, indexes, timers, Rtimers, neighs, seed, dist_bfs_from, kwds):
         # 0 : Suscepted
         # 1 : Infected
         # 10: Super Infected
         neigh_arr = neighs[0]
         slices = neighs[1]
+        beta, beta_super, xi, awM, awR = kwds['beta'], kwds['beta_super'], kwds['xi'], kwds['awM'], kwds['awR']
 
 
         if xi<=0:
@@ -198,7 +227,7 @@ class Agent_Country:
             beta=beta*(1-awM)**numInf
 
         merged =False
-        for ind in indexes[(states == I) | (states == G)]:            
+        for ind in indexes[(states == I) | (states == G)]:
             adj_list = neigh_arr[slices[ind][0]:slices[ind][1]]
             S_adj_list = adj_list[states[adj_list]==0]
             if ((seed[adj_list[seed[adj_list]>0]]!=seed[ind]).any()):
@@ -207,9 +236,14 @@ class Agent_Country:
             # === Distance sensitive awareness ====
             awareness =1
             if ((awM>0) and (awR>0)):
-                awereness_vector = awM*(dist_bfs_from[ind][((states == I) | (states == G)) & (indexes !=ind)]**(-awR))
-                if len(awereness_vector)>0:
-                    awareness = np.prod(1- awereness_vector)
+                awareness_vector = awM*(dist_bfs_from[ind][((states == I) | (states == G)) & (indexes !=ind)]**(-awR))
+                if(('sigmoid' in kwds) and (kwds['sigmoid'] > 0)):
+                    th = kwds['sigmoid_th']
+                    speed = kwds['sigmoid_speed']
+                    awareness_max = awM*(dist_bfs_from[ind][(indexes !=ind)]**(-awR))
+                    awareness = awareness_sigmoid(len(states), awareness_vector, awareness_max, th, speed)
+                else:
+                    awareness = awareness_prod(awareness_vector)
 
             beta_super_current=beta_super*awareness
             beta_current=beta*awareness
@@ -224,11 +258,11 @@ class Agent_Country:
                 infected = np.random.choice(S_adj_list, replace = False, size=new_inf_num)
             
             states[infected] = -I
-            timers[infected] = np.random.geometric(gamma, size=len(infected))+1
+            timers[infected] = np.random.geometric(kwds['gamma'], size=len(infected))+1
             seed[infected] = seed[ind]
         
             # === Choose super infected ===
-            new_super_inf_num = np.random.binomial(infected.size, p_super)
+            new_super_inf_num = np.random.binomial(infected.size, kwds['p_super'])
             focus = np.random.choice(infected, replace = False, size=new_super_inf_num)
             states[focus] = -G
 
@@ -241,7 +275,7 @@ class Agent_Country:
     # === Helper Functions ===
     def get_neigh_flattened(self, neighs):
         arr = []
-        slices = np.zeros(shape = (len(neighs),2))
+        slices = np.zeros(shape = (len(neighs),2), dtype=int)
         ind = 0
         for i,adj_list in enumerate(neighs):
             n = len(adj_list)
