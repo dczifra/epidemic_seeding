@@ -8,3 +8,4 @@ src/bin/ecl-cc
 *.csv
 *.json
 *.log
+scripts/real_data/data/
